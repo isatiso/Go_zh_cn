@@ -50,23 +50,27 @@ func (p *Page) save() error {
 
 这个方法会将 `Page` 的 `body` 存储为一个文本文件。简单起见，我们会用 `Title` 作为文件名。
 
-The save method returns an error value because that is the return type of WriteFile (a standard library function that writes a byte slice to a file). The save method returns the error value, to let the application handle it should anything go wrong while writing the file. If all goes well, Page.save() will return nil (the zero-value for pointers, interfaces, and some other types).
+`save` 方法返回一个 `error` 值是因为这个就是 `WriteFile`（一个将 `byte` 切片写入文件的标准库函数）的返回值类型。`save` 方法返回 `error` 值，这样就可以在写文件出现任何错误时处理它。如果没出任何问题，`Page.save()` 会返回 `nil`（指针，接口，以及一些其他类型的零值）。
 
-The octal integer literal 0600, passed as the third parameter to WriteFile, indicates that the file should be created with read-write permissions for the current user only. (See the Unix man page open(2) for details.)
+八进制整形字面量 `0600`，作为第三个参数传递给 `WriteFile`，意味着将会创建一个只供当前用户拥有读写权限的文件。（查看 Unix 手册 `open(2)` 获取更多细节）
 
-In addition to saving pages, we will want to load pages, too:
+除了要保存页面之外，我们还需要加载页面：
 
+```go
 func loadPage(title string) *Page {
     filename := title + ".txt"
     body, _ := ioutil.ReadFile(filename)
     return &Page{Title: title, Body: body}
 }
-The function loadPage constructs the file name from the title parameter, reads the file's contents into a new variable body, and returns a pointer to a Page literal constructed with the proper title and body values.
+```
 
-Functions can return multiple values. The standard library function io.ReadFile returns []byte and error. In loadPage, error isn't being handled yet; the "blank identifier" represented by the underscore (_) symbol is used to throw away the error return value (in essence, assigning the value to nothing).
+函数 `loadPage` 通过 `title` 参数构造文件名，读取文件内容，并存入一个新的变量 `body` 中，然后返回一个指向用对应的 `title` 和 `body` 构造的 `Page` 字面量的指针。
 
-But what happens if ReadFile encounters an error? For example, the file might not exist. We should not ignore such errors. Let's modify the function to return *Page and error.
+函数可以返回多个值，标准库函数 `io.ReadFile` 返回 `[]byte` 和 `error`。在 `loadPage` 中，错误没有进行处理；（`_`）表示空白标识符，它用来将不需要的 错误值丢弃（in essence, assigning the value to nothing）。
 
+但是如果 `ReadFile` 遇到了错误呢？比如说，文件不存在。我们不应该忽视这类错误，所以让我们修改这个函数，让他返回 `*Page` 和 `error`。
+
+```go
 func loadPage(title string) (*Page, error) {
     filename := title + ".txt"
     body, err := ioutil.ReadFile(filename)
@@ -75,30 +79,40 @@ func loadPage(title string) (*Page, error) {
     }
     return &Page{Title: title, Body: body}, nil
 }
-Callers of this function can now check the second parameter; if it is nil then it has successfully loaded a Page. If not, it will be an error that can be handled by the caller (see the language specification for details).
+```
 
-At this point we have a simple data structure and the ability to save to and load from a file. Let's write a main function to test what we've written:
+这个函数的调用者现在检查了第二个参数；如果它是 `nil` ，那么就说明成功加载了一个 `Page` 。否则它会是一个 `error` ，从而让调用者进行处理（查看 [language specification](https://go-zh.org/ref/spec#Errors) 获取更多细节)。
 
+现在我们有了一个简单的数据结构可以用来存储和加载文件。下面我们来写一个 `main` 函数来测试我们刚刚写的数据结构：
+
+```go
 func main() {
     p1 := &Page{Title: "TestPage", Body: []byte("This is a sample Page.")}
     p1.save()
     p2, _ := loadPage("TestPage")
     fmt.Println(string(p2.Body))
 }
-After compiling and executing this code, a file named TestPage.txt would be created, containing the contents of p1. The file would then be read into the struct p2, and its Body element printed to the screen.
+```
+编译执行这段代码之后，一个叫做 `TestPage.txt` 的文件被创建出来，包含了 `p1`  的内容。之后，这个文件的内容会被读取到结构体 `p2` 中，并且它的 `Body` 元素会被打印在屏幕上。
 
-You can compile and run the program like this:
+你可以像下面这样编译和执行程序：
 
+```go
 $ go build wiki.go
 $ ./wiki
 This is a sample page.
-(If you're using Windows you must type "wiki" without the "./" to run the program.)
+```
 
-Click here to view the code we've written so far.
+如果你使用 Windows 系統，你需要使用 `wiki` 不带 `./` 来运行程序。
 
-Introducing the net/http package (an interlude)
-Here's a full working example of a simple web server:
+[点击这里查看目前为止所写的代码](https://go-zh.org/doc/articles/wiki/part1.go)
 
+# `net/http` 介绍
+
+这是一个 WEB 服务器的最小化实现：
+
+
+```go
 package main
 
 import (
@@ -114,7 +128,11 @@ func main() {
     http.HandleFunc("/", handler)
     http.ListenAndServe(":8080", nil)
 }
+```
+
 The main function begins with a call to http.HandleFunc, which tells the http package to handle all requests to the web root ("/") with handler.
+
+
 
 It then calls http.ListenAndServe, specifying that it should listen on port 8080 on any interface (":8080"). (Don't worry about its second parameter, nil, for now.) This function will block until the program is terminated.
 
@@ -513,3 +531,6 @@ Implement inter-page linking by converting instances of [PageName] to
 构建版本 devel +f22911f Thu Apr 16 05:55:22 2015 +0000.
 除特别注明外， 本页内容均采用知识共享-署名（CC-BY）3.0协议授权，代码采用BSD协议授权。
 服务条款 | 隐私政策
+```
+
+```
