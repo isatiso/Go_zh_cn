@@ -97,7 +97,7 @@ func main() {
 
 你可以像下面这样编译和执行程序：
 
-```go
+```bash
 $ go build wiki.go
 $ ./wiki
 This is a sample page.
@@ -107,7 +107,7 @@ This is a sample page.
 
 [点击这里查看目前为止所写的代码](https://go-zh.org/doc/articles/wiki/part1.go)
 
-# `net/http` 介绍
+# 介绍 `net/http` 
 
 这是一个 WEB 服务器的最小化实现：
 
@@ -130,76 +130,102 @@ func main() {
 }
 ```
 
-The main function begins with a call to http.HandleFunc, which tells the http package to handle all requests to the web root ("/") with handler.
+`main` 函数调用 `http.HandleFunc`，告诉 `http` 包的 `handler` 处理所有对根目录 `"/"` 的请求。
 
+之后又调用了 `http.ListenAndServe`，指定它在所有接口上应该监听 8080 端口（`":8080"`）。（目前不用担心它的第二个参数是 `nil` ）这个函数会一直阻塞到程序终止。
 
+函数 `handler` 的类型是 `http.HandlerFunc`。他需要 `http.ResponseWriter` 和一个 `http.Request` 作为它的参数。
 
-It then calls http.ListenAndServe, specifying that it should listen on port 8080 on any interface (":8080"). (Don't worry about its second parameter, nil, for now.) This function will block until the program is terminated.
+通过向 `http.ResponseWriter` 写入数据构造 HTTP 服务的响应，并发送给客户端。
 
-The function handler is of the type http.HandlerFunc. It takes an http.ResponseWriter and an http.Request as its arguments.
+ `http.Request` 用来表示一个客户端请求的一个数据结构。`r.URL.Path` 是请求 URL 的路径部分。后面的 `[1:]` 意思是创建一个 `Path` 的切片（从第一个字符一直到最后一个）。这个操作也就是去掉了路径开头的 `"/"`。
 
-An http.ResponseWriter value assembles the HTTP server's response; by writing to it, we send data to the HTTP client.
+如果你运行这个程序，并且接受到下面的 URL：
 
-An http.Request is a data structure that represents the client HTTP request. r.URL.Path is the path component of the request URL. The trailing [1:] means "create a sub-slice of Path from the 1st character to the end." This drops the leading "/" from the path name.
-
-If you run this program and access the URL:
-
+```bash
 http://localhost:8080/monkeys
-the program would present a page containing:
+```
 
+程序就会返回一个包含下列信息的页面：
+
+```bash
 Hi there, I love monkeys!
-Using net/http to serve wiki pages
-To use the net/http package, it must be imported:
+```
 
+
+
+# 使用 `net/http` 托管 wiki 页面
+
+使用 `net/http` 包就需要先加载它：
+
+```go
 import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
 )
-Let's create a handler, viewHandler that will allow users to view a wiki page. It will handle URLs prefixed with "/view/".
+```
 
+下面创建一个 `handler`，`viewHandler` 会允许用户查看一个 wiki 页面。它会处理 URL 的前缀，`"/view/"。
+
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/view/"):]
     p, _ := loadPage(title)
     fmt.Fprintf(w, "<h1>%s</h1><div>%s</div>", p.Title, p.Body)
 }
-First, this function extracts the page title from r.URL.Path, the path component of the request URL. The Path is re-sliced with [len("/view/"):] to drop the leading "/view/" component of the request path. This is because the path will invariably begin with "/view/", which is not part of the page's title.
+```
 
-The function then loads the page data, formats the page with a string of simple HTML, and writes it to w, the http.ResponseWriter.
+首先，这个函数通过 `r.URL.Path` 提取页面标题。`Path` 已经通过 `[len("/view/"):]` 重新切片，来去掉请求路径前缀的`"/view/"` 部分。这就是为什么路径总是以 `"/view/"` 开头，但它却不是页面标题的一部分。
 
-Again, note the use of _ to ignore the error return value from loadPage. This is done here for simplicity and generally considered bad practice. We will attend to this later.
+这个函数之后又加载了页面数据，并将页面格式化为一个简单的 HTML 字符串，写入 `w` （`http.ResponseWriter`）中。
 
-To use this handler, we rewrite our main function to initialize http using the viewHandler to handle any requests under the path /view/.
+再说一遍，要注意使用 `_` 来忽略 `loadPage` 返回的 `error` 值。这是为了简化起见，并不是一个好的做法，稍后我们会继续关注这里。
 
+想要使用这个 handler，我们重写了 `main` 函数，使用 `viewHandler` 初始化 `http` ，处理任何在 `/view/` 路径下的请求。
+
+```go
 func main() {
     http.HandleFunc("/view/", viewHandler)
     http.ListenAndServe(":8080", nil)
 }
-Click here to view the code we've written so far.
+```
 
-Let's create some page data (as test.txt), compile our code, and try serving a wiki page.
+[点击这里查看目前为止我们写的代码](https://go-zh.org/doc/articles/wiki/part2.go)。
 
-Open test.txt file in your editor, and save the string "Hello world" (without quotes) in it.
+下面我们创建一些页面数据（比如 `test.txt` ），编译我们的代码，然后尝试伺服一个 wiki 页面。
 
+在你的编辑器中打开 `test.txt` 文件，写入 `Hello world` 并保存。
+
+```bash
 $ go build wiki.go
 $ ./wiki
-(If you're using Windows you must type "wiki" without the "./" to run the program.)
+```
 
-With this web server running, a visit to http://localhost:8080/view/test should show a page titled "test" containing the words "Hello world".
+如果你使用 Windows 系統，你需要使用 `wiki` 不带 `./` 来运行程序。
 
-Editing Pages
-A wiki is not a wiki without the ability to edit pages. Let's create two new handlers: one named editHandler to display an 'edit page' form, and the other named saveHandler to save the data entered via the form.
+这个服务运行起来后，访问 http://localhost:8080/view/test 会看到一个标题为 `"test"` 的页面，内容是 `"Hello world"`。
 
-First, we add them to main():
 
+
+# 编辑页面
+
+一个不能编辑的 wiki 不是一个真 wiki。下面我们就创建两个新的处理器：一个叫 `editHandler` ，用来显示一个编辑页面表单，另一个叫做 ``saveHandler` ` 用来保存通过表单提交的数据。
+
+首先我们来将它们添加到 `main()` ：
+
+```go
 func main() {
     http.HandleFunc("/view/", viewHandler)
     http.HandleFunc("/edit/", editHandler)
     http.HandleFunc("/save/", saveHandler)
     http.ListenAndServe(":8080", nil)
 }
-The function editHandler loads the page (or, if it doesn't exist, create an empty Page struct), and displays an HTML form.
+```
 
+函数 `editHandler` 加载了页面（或者，如果不存在的话，就创建一个空的 `Page` 结构体），然后显示一个 HTML 表单。
+
+```go
 func editHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/edit/"):]
     p, err := loadPage(title)
@@ -213,28 +239,38 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
         "</form>",
         p.Title, p.Title, p.Body)
 }
-This function will work fine, but all that hard-coded HTML is ugly. Of course, there is a better way.
+```
 
-The html/template package
-The html/template package is part of the Go standard library. We can use html/template to keep the HTML in a separate file, allowing us to change the layout of our edit page without modifying the underlying Go code.
+这个函数可以正常运行，但是所有 HTML 都是硬编码的，这太丑了。我们当然还有更好的方法。
 
-First, we must add html/template to the list of imports. We also won't be using fmt anymore, so we have to remove that.
+# 内置包 `html/template` 
 
+`html/template` 包是 Go 标准库的一部分。可以用它来将 HTML 作为一个分离的文件，允许更改 HTML 的同时不影响 Go 代码。
+
+首先，我们必须将 `html/template` 添加到加载列表中。后面就不会再用 `fmt` 了，所以我们要移除它。
+
+```go
 import (
 	"html/template"
 	"io/ioutil"
 	"net/http"
 )
-Let's create a template file containing the HTML form. Open a new file named edit.html, and add the following lines:
+```
 
+下面我们来创建一个包含 HTML 表单的模板文件。打开一个新文件，并命名为 `edit.html`，向其中添加下列内容：
+
+```HTML
 <h1>Editing {{.Title}}</h1>
 
 <form action="/save/{{.Title}}" method="POST">
 <div><textarea name="body" rows="20" cols="80">{{printf "%s" .Body}}</textarea></div>
 <div><input type="submit" value="Save"></div>
 </form>
-Modify editHandler to use the template, instead of the hard-coded HTML:
+```
 
+修改 `editHandler` 来使用模板，取代硬编码的 HTML：
+
+```go
 func editHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/edit/"):]
     p, err := loadPage(title)
@@ -244,40 +280,55 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
     t, _ := template.ParseFiles("edit.html")
     t.Execute(w, p)
 }
-The function template.ParseFiles will read the contents of edit.html and return a *template.Template.
+```
 
-The method t.Execute executes the template, writing the generated HTML to the http.ResponseWriter. The .Title and .Body dotted identifiers refer to p.Title and p.Body.
+函数 `template.ParseFiles` 会读取 `edit.html` 文件，并返回一个 `*template.Template `。
 
-Template directives are enclosed in double curly braces. The printf "%s" .Body instruction is a function call that outputs .Body as a string instead of a stream of bytes, the same as a call to fmt.Printf. The html/template package helps guarantee that only safe and correct-looking HTML is generated by template actions. For instance, it automatically escapes any greater than sign (>), replacing it with &gt;, to make sure user data does not corrupt the form HTML.
+方法 `t.Execute` 会运行模板，将生成的 HTML 写入 `http.RespnseWriter`。`.Title` 和 `.Body` 这样的点号标识符，就是引用了 `p.Title` 和 `p.Body`。
 
-Since we're working with templates now, let's create a template for our viewHandler called view.html:
+模板指令通过双大括号包围。`printf "%s" .Body` 指令是一个函数调用，将 `.Body` 作为一个字符串，而不是字节流输出，调用 `fmt.Printf` 也是一样的效果。`html/template` 包保证了只有安全，美观的 HTML可以执行模板渲染。比如，它会自动转移大于符号 （`>`），替换为 `&gt;`，以此保证用户数据不会破坏 HTML 文档。
 
+由于我们现在使用了模板工具，下面我们来创建一个 `viewHandler` 中使用的模板 `view.html`：
+
+```HTML
 <h1>{{.Title}}</h1>
 
 <p>[<a href="/edit/{{.Title}}">edit</a>]</p>
 
 <div>{{printf "%s" .Body}}</div>
-Modify viewHandler accordingly:
+```
 
+相应的修改 `viewHandler` ：
+
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/view/"):]
     p, _ := loadPage(title)
     t, _ := template.ParseFiles("view.html")
     t.Execute(w, p)
 }
-Notice that we've used almost exactly the same templating code in both handlers. Let's remove this duplication by moving the templating code to its own function:
+```
 
+需要注意的是，我们在两个处理器中使用了几乎相同的模板代码。下面我们将模板代码提取到单独的函数中来删除重复代码：
+
+```go
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
     t, _ := template.ParseFiles(tmpl + ".html")
     t.Execute(w, p)
 }
-And modify the handlers to use that function:
+```
 
+然后修改处理器来使用这个函数：
+
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/view/"):]
     p, _ := loadPage(title)
     renderTemplate(w, "view", p)
 }
+```
+
+```go
 func editHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/edit/"):]
     p, err := loadPage(title)
@@ -286,9 +337,17 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
     }
     renderTemplate(w, "edit", p)
 }
-If we comment out the registration of our unimplemented save handler in main, we can once again build and test our program. Click here to view the code we've written so far.
+```
 
-Handling non-existent pages
+
+如果我们注释掉我们在 `main` 中未实现的 `save` 处理程序的注册，我们可以再次构建和测试我们的程序。
+
+[点击这里查看我们到现在为止写的代码](https://go-zh.org/doc/articles/wiki/part3.go).
+
+
+
+# 处理不存在的页面
+
 What if you visit /view/APageThatDoesntExist? You'll see a page containing HTML. This is because it ignores the error return value from loadPage and continues to try and fill out the template with no data. Instead, if the requested Page doesn't exist, it should redirect the client to the edit Page so the content may be created:
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
