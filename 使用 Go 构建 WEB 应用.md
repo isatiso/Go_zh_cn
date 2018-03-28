@@ -111,7 +111,7 @@ This is a sample page.
 
 
 
-# 介绍 `net/http` 
+# 引入 `net/http` 
 
 这是一个 WEB 服务器的最小化实现：
 
@@ -536,16 +536,19 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 
 
 
-# 介绍函数字面量和闭包
+# 引入函数字面量和闭包
 
-Catching the error condition in each handler introduces a lot of repeated code. What if we could wrap each of the handlers in a function that does this validation and error checking? Go's function literals provide a powerful means of abstracting functionality that can help us here.
+在每一个处理器中都捕获异常会产生非常多的重复代码。如果我们可以将每一个异常处理包装成一个函数来进行验证和错误检查呢？Go 的 [函数字面量](https://go-zh.org/ref/spec#Function_literals) 提供了一个非常有用的工具来进行函数功能抽象，在这里会非常有用。
 
-First, we re-write the function definition of each of the handlers to accept a title string:
+首先我们重写每个处理器的函数定义，来接受一个标题字符串：
 
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request, title string)
 func editHandler(w http.ResponseWriter, r *http.Request, title string)
 func saveHandler(w http.ResponseWriter, r *http.Request, title string)
-Now let's define a wrapper function that takes a function of the above type, and returns a function of type http.HandlerFunc (suitable to be passed to the function http.HandleFunc):
+```
+
+现在，我们来定义一个包装函数，接受上面这些函数类型参数，返回一个类型为 `http.HandlerFunc` （也可以传递给函数 `http.HandlerFunc`）的函数：
 
 ```go
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
@@ -556,10 +559,9 @@ func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.Hand
 }
 ```
 
+这个返回的函数被称为闭包，因为他带入了定义在函数外面的值，变量 `fn`（传递给 `makeHandler` 的参数）被带入了闭包中。变量 `fn` 可以是 `save` ，`edit` ，`view` 中的一个处理器。
 
-The returned function is called a closure because it encloses values defined outside of it. In this case, the variable fn (the single argument to makeHandler) is enclosed by the closure. The variable fn will be one of our save, edit, or view handlers.
-
-Now we can take the code from getTitle and use it here (with some minor modifications):
+现在我们可以把 `getTitle` 中的代码拿到这里来（需要做一些很小的修改）：
 
 ```go
 func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
@@ -574,10 +576,9 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 }
 ```
 
+`makeHandler` 返回的闭包是一个函数，需要 `http.ResponseWriter` 和 `http.Request` （换言之，就是 `http.HandlerFunc` ）作为参数。闭包从请求路径中提取标题内容，并且用正则表达式 `TitleValidator ` 做验证。如果标题无效，就会通过 `http.NotFound` 函数向 `ResponseWriter` 写入一个异常。如果标题有效，带入的处理器函数 `fn` 就会使用 `ResponseWriter` ，`Request` ，和 `title` 作为参数调用。
 
-The closure returned by makeHandler is a function that takes an http.ResponseWriter and http.Request (in other words, an http.HandlerFunc). The closure extracts the title from the request path, and validates it with the TitleValidator regexp. If the title is invalid, an error will be written to the ResponseWriter using the http.NotFound function. If the title is valid, the enclosed handler function fn will be called with the ResponseWriter, Request, and title as arguments.
-
-Now we can wrap the handler functions with makeHandler in main, before they are registered with the http package:
+现在我们可以在处理器函数被注册到 http 包中之前，使用 `main` 中的 `makeHandler` 对它们进行包装：
 
 ```go
 func main() {
@@ -604,8 +605,7 @@ func main() {
 }
 ```
 
-
-Finally we remove the calls to getTitle from the handler functions, making them much simpler:
+最后，我们移除了对 `getTitle` 的调用，让处理变得更加简洁：
 
 ```go
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -645,24 +645,23 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 
 # 试一试吧！
 
-Click here to view the final code listing.
+[点击这里查看最终版本的代码](https://go-zh.org/doc/articles/wiki/final.go)。
 
-Recompile the code, and run the app:
+重新编译代码，运行这个应用：
 
 ```bash
 $ go build wiki.go
 $ ./wiki
 ```
 
-
-Visiting http://localhost:8080/view/ANewPage should present you with the page edit form. You should then be able to enter some text, click 'Save', and be redirected to the newly created page.
+访问 http://localhost:8080/view/ANewPage 会看到编辑页面表单。之后你就可以输入一些文本，点击 Save 按钮，之后被重定向到刚刚创建的页面。
 
 # 其他任务
 
-Here are some simple tasks you might want to tackle on your own:
+下面是一些你现在可以自己解决的简单任务：
 
-Store templates in tmpl/ and page data in data/.
-Add a handler to make the web root redirect to /view/FrontPage.
-Spruce up the page templates by making them valid HTML and adding some CSS rules.
-Implement inter-page linking by converting instances of [PageName] to 
-<a href="/view/PageName">PageName</a>. (hint: you could use regexp.ReplaceAllFunc to do this)
+- 将模板存储到 `tmpl/` 文件夹，将页面文件存储到 `data/` 文件夹。
+- 添加一个处理器将根目录重定向到 `/view/FrontPage`。
+- 美化页面模板，添加一些 CSS 规则，并保持它是一个有效的 HTML 文件。
+- 将 `[PageName]` 转换为 `<a href="/view/PageName">PageName</a>` 实现一个页面内部链接。(提示：你可以使用 `regexp.ReplaceAllFunc` 来实现。)
+
