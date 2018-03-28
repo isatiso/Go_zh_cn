@@ -24,6 +24,8 @@ import (
 
 我们已经从 Go 标准库中加载了 `"fmt"` 和 `"ioutil"` 包。稍后，我们实现其他功能的时候，会加载更多的包。
 
+
+
 # 数据结构
 
 下面我们开始定义数据结构。一个 wiki 一系列互相联系的页面组成，每一页有一个 title（标题）和一个 body （页面内容）组成。这里，我们定义 `Page` 结构体，他有两个字段分别代表 title 和 body。
@@ -106,6 +108,8 @@ This is a sample page.
 如果你使用 Windows 系統，你需要使用 `wiki` 不带 `./` 来运行程序。
 
 [点击这里查看目前为止所写的代码](https://go-zh.org/doc/articles/wiki/part1.go)
+
+
 
 # 介绍 `net/http` 
 
@@ -243,6 +247,8 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 
 这个函数可以正常运行，但是所有 HTML 都是硬编码的，这太丑了。我们当然还有更好的方法。
 
+
+
 # 内置包 `html/template` 
 
 `html/template` 包是 Go 标准库的一部分。可以用它来将 HTML 作为一个分离的文件，允许更改 HTML 的同时不影响 Go 代码。
@@ -348,8 +354,9 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 
 # 处理不存在的页面
 
-What if you visit /view/APageThatDoesntExist? You'll see a page containing HTML. This is because it ignores the error return value from loadPage and continues to try and fill out the template with no data. Instead, if the requested Page doesn't exist, it should redirect the client to the edit Page so the content may be created:
+如果你访问 `/view/APageThatDoesntExist` 会发生什么？你会看到一个有 HTML 的页面。这是因为它忽略了 `loadPage` 返回的错误信息，然后继续试图用空的数据渲染模板。所以我们将它修改为，如果请求页面不存在，就将客户端重定向到编辑页面，这样就可以创建文本了：
 
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/view/"):]
     p, err := loadPage(title)
@@ -359,11 +366,17 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
     }
     renderTemplate(w, "view", p)
 }
-The http.Redirect function adds an HTTP status code of http.StatusFound (302) and a Location header to the HTTP response.
+```
 
-Saving Pages
-The function saveHandler will handle the submission of forms located on the edit pages. After uncommenting the related line in main, let's implement the handler:
+`http.Redirect` 函数添加了一个 HTTP 状态码 `http.StatusFound` （302），并向 HTTP 的响应里面添加了一个 `Location` 头部信息。
 
+
+
+# 保存页面
+
+函数 `saveHandler` 会处理编辑页面上的表单提交。在去掉 `main` 中的注释后，下面我们实现这个处理器：
+
+```go
 func saveHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/save/"):]
     body := r.FormValue("body")
@@ -371,15 +384,21 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
     p.save()
     http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
-The page title (provided in the URL) and the form's only field, Body, are stored in a new Page. The save() method is then called to write the data to a file, and the client is redirected to the /view/ page.
+```
 
-The value returned by FormValue is of type string. We must convert that value to []byte before it will fit into the Page struct. We use []byte(body) to perform the conversion.
+页面标题（在 URL 中获得）和表单的唯一字段 `Body` ，被存储为一个新的 `Page` 。之后调用`save()` 方法将数据写入文件，并且客户端会重定向到 `/view/` 页面。
 
-Error handling
-There are several places in our program where errors are being ignored. This is bad practice, not least because when an error does occur the program will have unintended behavior. A better solution is to handle the errors and return an error message to the user. That way if something does go wrong, the server will function exactly how we want and the user can be notified.
+The value returned by `FormValue` is of type `string`. We must convert that value to `[]byte` before it will fit into the `Page` struct. We use `[]byte(body)` to perform the conversion.
 
-First, let's handle the errors in renderTemplate:
+`FormValue` 的返回值类型是 `string` 。我们必须将这个值转换为 `[]byte` ，之后才可以存入 `Page` 结构体。我们使用 `[]byte(body)` 来实现这个转换。
 
+# 异常处理
+
+在我们的程序中，还有几处异常被忽略的地方。这其实是很糟糕的做法，尤其是因为当程序中出现一个异常时，会产生意想不到的行为。好一点的解决方案是处理异常，并将错误信息反馈给用户。这样如果一些东西出了问题，程序会按照我们期望的方式运行，并且用户也可以收到通知。
+
+首先，我们来处理 `renderTemplate` 中的异常：
+
+```go
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
     t, err := template.ParseFiles(tmpl + ".html")
     if err != nil {
@@ -391,10 +410,13 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
 }
-The http.Error function sends a specified HTTP response code (in this case "Internal Server Error") and error message. Already the decision to put this in a separate function is paying off.
+```
 
-Now let's fix up saveHandler:
+`http.Error` 函数会发送一个指定的 HTTP 响应码（在这里就是 “服务器错误”）和一个错误信息。现在，将异常处理提取到分离的函数中的作用已经显现出来。
 
+现在，我们来修理 `saveHandler` ：
+
+```go
 func saveHandler(w http.ResponseWriter, r *http.Request) {
     title := r.URL.Path[len("/save/"):]
     body := r.FormValue("body")
@@ -406,38 +428,52 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
     }
     http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
-Any errors that occur during p.save() will be reported to the user.
+```
 
-Template caching
-There is an inefficiency in this code: renderTemplate calls ParseFiles every time a page is rendered. A better approach would be to call ParseFiles once at program initialization, parsing all templates into a single *Template. Then we can use the ExecuteTemplate method to render a specific template.
+任何在运行 `p.save()` 期间发生的异常都会被报告给用户。 
 
-First we create a global variable named templates, and initialize it with ParseFiles.
+# 模板缓存
 
+目前的代码中还有一个很低效的地方：`renderTemplate` 每次渲染一个模板时都要调用 `ParseFiles` 。一个更好的途径是，在程序初始化时调用一次 `ParseFiles` ，解析所有模板到一个单独的 `*Template` 中。之后我们可以使用 `ExecuteTemplate` 方法来渲染一个指定的模板。
+
+首先我们创建一个全局变量 `templates` ，使用 `ParseFiles` 对它进行初始化。
+
+```go
 var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
-The function template.Must is a convenience wrapper that panics when passed a non-nil error value, and otherwise returns the *Template unaltered. A panic is appropriate here; if the templates can't be loaded the only sensible thing to do is exit the program.
+```
 
-The ParseFiles function takes any number of string arguments that identify our template files, and parses those files into templates that are named after the base file name. If we were to add more templates to our program, we would add their names to the ParseFiles call's arguments.
+函数 `template.Must` 是一个便捷包装，如果收到一个非零的 `error` 值，则发出 panic，否则返回一个未修改的 `*Template` 。这里触发 panic 是适当的；如果模板不能加载，那么显然能做的事情只有退出程序。
 
-We then modify the renderTemplate function to call the templates.ExecuteTemplate method with the name of the appropriate template:
+`ParseFiles` 函数接收任意数量的定位模板文件的字符串参数，并且将这些文件解析到以基础文件名命名的模板中。如果我们想要添加更多的模板到程序中，就要将他们的名字添加到 `ParseFiles` 参数中去。
 
+之后修改 `renderTemplate` 函数，通过适当模板的名字调用 `templates.ExecuteTemplate` 方法：
+
+```go
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
     err := templates.ExecuteTemplate(w, tmpl+".html", p)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
 }
-Note that the template name is the template file name, so we must append ".html" to the tmpl argument.
+```
 
-Validation
-As you may have observed, this program has a serious security flaw: a user can supply an arbitrary path to be read/written on the server. To mitigate this, we can write a function to validate the title with a regular expression.
+需要注意的是，模板名字就是模板文件的名字，所以我们必须向 tmpl 参数后面添加 `".html"` 。
 
-First, add "regexp" to the import list. Then we can create a global variable to store our validation expression:
+# 验证
 
+如果你注意观察，可能会发现这个程序现在有一些安全缺陷：一个用户可以提供一个随意的路径，来读/写服务器。为了避免这一点，我们可以写一个函数来使用正则表达式验证这个路径是否合法。
+
+首先，添加 `"regexp"` 包到加载列表。之后我们可以创建一个全局变量来存储我们的验证表达式：
+
+```go
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
-The function regexp.MustCompile will parse and compile the regular expression, and return a regexp.Regexp. MustCompile is distinct from Compile in that it will panic if the expression compilation fails, while Compile returns an error as a second parameter.
+```
 
-Now, let's write a function that uses the validPath expression to validate path and extract the page title:
+函数 `regexp.MustCompile` 会解析并编译正则表达式，然后返回一个 `regexp.Regexp. MustCompile` ，它和 `Compile` 不一样的地方在于，如果表达式编译失败，`Compile` 会返回一个 `error` 作为第二个参数，而这会触发一个 panic。
 
+现在，我们来写一个函数，使用 `validPath` 表达式去验证路径并提取页面标题：
+
+```go
 func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
     m := validPath.FindStringSubmatch(r.URL.Path)
     if m == nil {
@@ -446,10 +482,13 @@ func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
     }
     return m[2], nil // The title is the second subexpression.
 }
-If the title is valid, it will be returned along with a nil error value. If the title is invalid, the function will write a "404 Not Found" error to the HTTP connection, and return an error to the handler. To create a new error, we have to import the errors package.
+```
 
-Let's put a call to getTitle in each of the handlers:
+如果标题是有效的，他就会返回一个 `nil` 作为 `error` 值。如果标题是无效的，函数就会向 HTTP 连接写入一个 `"404 Not Found"` 异常，然后返回一个 `error` 给处理器。我们需要加载 `error` 包来创建一个新的 `error` 。
 
+现在我们让每个处理器中调用 `getTitle` ：
+
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request) {
     title, err := getTitle(w, r)
     if err != nil {
@@ -462,6 +501,9 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
     }
     renderTemplate(w, "view", p)
 }
+```
+
+```go
 func editHandler(w http.ResponseWriter, r *http.Request) {
     title, err := getTitle(w, r)
     if err != nil {
@@ -473,6 +515,9 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
     }
     renderTemplate(w, "edit", p)
 }
+```
+
+```go
 func saveHandler(w http.ResponseWriter, r *http.Request) {
     title, err := getTitle(w, r)
     if err != nil {
@@ -487,7 +532,12 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
     }
     http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
-Introducing Function Literals and Closures
+```
+
+
+
+# 介绍函数字面量和闭包
+
 Catching the error condition in each handler introduces a lot of repeated code. What if we could wrap each of the handlers in a function that does this validation and error checking? Go's function literals provide a powerful means of abstracting functionality that can help us here.
 
 First, we re-write the function definition of each of the handlers to accept a title string:
@@ -497,16 +547,21 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string)
 func saveHandler(w http.ResponseWriter, r *http.Request, title string)
 Now let's define a wrapper function that takes a function of the above type, and returns a function of type http.HandlerFunc (suitable to be passed to the function http.HandleFunc):
 
+```go
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Here we will extract the page title from the Request,
 		// and call the provided handler 'fn'
 	}
 }
+```
+
+
 The returned function is called a closure because it encloses values defined outside of it. In this case, the variable fn (the single argument to makeHandler) is enclosed by the closure. The variable fn will be one of our save, edit, or view handlers.
 
 Now we can take the code from getTitle and use it here (with some minor modifications):
 
+```go
 func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         m := validPath.FindStringSubmatch(r.URL.Path)
@@ -517,10 +572,14 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
         fn(w, r, m[2])
     }
 }
+```
+
+
 The closure returned by makeHandler is a function that takes an http.ResponseWriter and http.Request (in other words, an http.HandlerFunc). The closure extracts the title from the request path, and validates it with the TitleValidator regexp. If the title is invalid, an error will be written to the ResponseWriter using the http.NotFound function. If the title is valid, the enclosed handler function fn will be called with the ResponseWriter, Request, and title as arguments.
 
 Now we can wrap the handler functions with makeHandler in main, before they are registered with the http package:
 
+```go
 func main() {
     flag.Parse()
     http.HandleFunc("/view/", makeHandler(viewHandler))
@@ -540,11 +599,15 @@ func main() {
         s.Serve(l)
         return
     }
-    
+
     http.ListenAndServe(":8080", nil)
 }
+```
+
+
 Finally we remove the calls to getTitle from the handler functions, making them much simpler:
 
+```go
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
     p, err := loadPage(title)
     if err != nil {
@@ -553,6 +616,9 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
     }
     renderTemplate(w, "view", p)
 }
+```
+
+```go
 func editHandler(w http.ResponseWriter, r *http.Request, title string) {
     p, err := loadPage(title)
     if err != nil {
@@ -560,6 +626,9 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
     }
     renderTemplate(w, "edit", p)
 }
+```
+
+```go
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
     body := r.FormValue("body")
     p := &Page{Title: title, Body: []byte(body)}
@@ -570,16 +639,26 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
     }
     http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
-Try it out!
+```
+
+
+
+# 试一试吧！
+
 Click here to view the final code listing.
 
 Recompile the code, and run the app:
 
+```bash
 $ go build wiki.go
 $ ./wiki
+```
+
+
 Visiting http://localhost:8080/view/ANewPage should present you with the page edit form. You should then be able to enter some text, click 'Save', and be redirected to the newly created page.
 
-Other tasks
+# 其他任务
+
 Here are some simple tasks you might want to tackle on your own:
 
 Store templates in tmpl/ and page data in data/.
@@ -587,9 +666,3 @@ Add a handler to make the web root redirect to /view/FrontPage.
 Spruce up the page templates by making them valid HTML and adding some CSS rules.
 Implement inter-page linking by converting instances of [PageName] to 
 <a href="/view/PageName">PageName</a>. (hint: you could use regexp.ReplaceAllFunc to do this)
-构建版本 devel +f22911f Thu Apr 16 05:55:22 2015 +0000.
-除特别注明外， 本页内容均采用知识共享-署名（CC-BY）3.0协议授权，代码采用BSD协议授权。
-服务条款 | 隐私政策
-```
-
-```
